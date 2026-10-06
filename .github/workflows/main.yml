@@ -1,0 +1,59 @@
+name: Build APK
+
+# Builds the Video Inject module in the cloud.
+# Put the zip (any file name ending in .zip) in the repo, or the unzipped project itself.
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+
+      - name: Prepare Android SDK
+        run: |
+          SDK="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          echo "Using Android SDK at $SDK"
+          echo "ANDROID_HOME=$SDK" >> "$GITHUB_ENV"
+          ls "$SDK/platforms" || true
+          sudo mkdir -p "$SDK/licenses"
+          printf '8933bad161af4178b1185d1a37fbf41ea5269c55\nd56f5187479451eabf01fb78af6dfcb131a6481e\n24333f8a63b6825ea9c5514f83c2829b004d1fee\n' | sudo tee "$SDK/licenses/android-sdk-license" > /dev/null
+          printf '84831b9409646a918e30573bab4c9c91346d8abd\n' | sudo tee "$SDK/licenses/android-sdk-preview-license" > /dev/null
+          sudo chmod -R a+rwX "$SDK" || true
+
+      - name: Find the project
+        run: |
+          shopt -s nullglob
+          for z in *.zip; do
+            echo "Unzipping $z"
+            unzip -q -o "$z" -d _build
+          done
+          SETTINGS=$(find . -name settings.gradle -not -path "./.git/*" | head -n 1)
+          if [ -z "$SETTINGS" ]; then
+            echo "Could not find settings.gradle. Files in the repo:"
+            find . -maxdepth 3 -not -path "./.git/*"
+            exit 1
+          fi
+          echo "PROJECT_DIR=$(dirname "$SETTINGS")" >> "$GITHUB_ENV"
+          echo "Project found in $(dirname "$SETTINGS")"
+
+      - name: Build
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: gradle assembleDebug --no-daemon --stacktrace
+
+      - name: Save the APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: VideoInject-APK
+          path: ${{ env.PROJECT_DIR }}/app/build/outputs/apk/debug/app-debug.apk
