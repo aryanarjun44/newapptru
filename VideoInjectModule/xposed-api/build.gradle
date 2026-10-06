@@ -1,0 +1,11 @@
+plugins {
+    id 'java-library'
+}
+
+// Compile-time stand-in for the Xposed/LSPosed API. It is never packaged into the APK:
+// LSPosed provides the real classes at runtime.
+// Java 17 output so it always matches the app module, whatever JDK Android Studio uses.
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}
